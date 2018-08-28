@@ -1,0 +1,200 @@
+#!/bin/bash
+sid=`sympd list -sid 6847 | awk 'NF == 3 && /^Symm/ {print $3}'`
+ 
+enc_name=`vxdmpadm listenclosure | grep ${sid} | awk '{print $1}'`
+
+vxdmpadm -s enclosure getsubpaths enclosure=${enc_name} > enclosure.subpaths
+
+vxdmpadm -s enclosure getsubpaths enclosure=${enc_name} |awk 'NR != 1 && NR != 2 {print $1}' > ${enc_name}.emcs
+
+for emcs  in `cat ${enc_name}.emcs`; do /etc/powermt display dev=${emcs}|awk 'NF == 9 && $7 == "dead" {print $3, $7}'; done> dead.ctds
+ 
+/etc/powermt display > powermt.txt
+/etc/powermt display dev=all >  allpowermt.devs.txt
+vxdisk -o alldgs -e list > allvxdisk.txt
+vxdg list > vxdg.txt
+sympd list -sid 6847 > sympd.6847.txt
+syminq > syminq.txt
+syminq -wwn > syminq.wwn.txt
+
+/usr/sbin/vxdg list |grep -v NAME | awk '{print $1}'  |
+ while read DG
+ do
+ vxprint -htg ${DG} > vxprint-htg.${DG}
+ done
+
+/usr/sbin/vxdg list |grep -v NAME | awk '{print $1}'  |
+ while read DG
+ do
+ vxconfigbackup -l ./vxconfigbackups $DG
+ done
+ 
+for luns in `cat ${enc_name}.emcs`
+do /etc/powermt display dev=${luns}
+done > emcs2powermt.details
+
+awk 'NR != 1 && NR != 2 {print $4}' enclosure.subpaths > vxdisks2rm
+
+
+
+=============================================================================================================
+
+for plx in `awk '{print $2}' remove.this.plex.vxprint_gcgmasd1dg.txt`
+do echo "Removing $plx"
+vxedit -g  gcgmasd1dg -r rm $plx
+done
+
+
+for vxdsk in `awk '{print $3}' reclaim_eqgbad2_dg.disks`; do vxdg -g reclaim_eqgbad2_dg rmdisk ${vxdsk}; echo "Removed $vxdsk"; done
+
+
+for disks in `awk '{print $1}' reclaim_eqgbad2_dg.disks |sed 's/s2$//g'`; do vxdiskunsetup $disks; echo "Removed $disks"; done
+
+
+
+### vxdg rmdisk 
+
+for luns in `cat pp_emc1.emcs `; do grep $luns allvxdisk.txt |awk '{print $3}'; done | while read dsk; do vxdg -g algodevdg rmdisk ${dsk}; done
+# ALternatively for single dg group server
+awk 'NR != 1 && NR != 2 {print $4}' enclosure.subpaths | while read luns
+  do grep $luns allvxdisk.txt | awk '$3 != "-" {print $3}'
+  done | while read vxdsk
+	do vxdg -g appsdg rmdisk ${vxdsk}
+	echo "Removed $vxdsk from appsdg"
+	done
+	
+# Alternatively, for multi dg grp server
+awk 'NR != 1 && NR != 2 {print $4}' enclosure.subpaths > enclosure.subpaths.vxdevs
+/usr/sbin/vxdg list |grep -v NAME | awk '{print $1}'  |
+ while read DG
+ do
+	grep '^dm' vxprint-htg.${DG} > vxprint-htg.${DG}.disks
+	for luns in `cat enclosure.subpaths.vxdevs`; do grep $luns vxprint-htg.${DG}.disks; done | awk '{print $2}' > vxprint-htg.${DG}.disks.2rm
+	for luns in `cat vxprint-htg.${DG}.disks.2rm` ; do echo "Removing $luns from ${DG}"; vxdg -g ${DG} rmdisk $luns; done
+done
+	
+
+
+### vxdisk rm 
+awk 'NR != 1 && NR != 2 {print $4}' enclosure.subpaths > oldvxdsk
+for luns in `cat oldvxdsk `; do vxdisk rm ${luns};  echo "REmoved ${luns}";done
+
+for ctds in `cat dead.ctds | awk '{print $1}'| sort -n `; do echo "removing $ctds `/etc/powermt check dev=$ctds force`"; done
+
+/etc/powercf -q ; /etc/powermt config ; /etc/powermt save
+
+# verify the dead path removal
+for luns in `cat pp_emc2.emcs`
+do /etc/powermt display dev=${luns}
+done
+
+# OS Device tree Clean up 
+cfgadm -o show_FCP_dev -al c1  | awk '$5 == "failing" {print substr($1,1,20)}' |uniq > run.unusable.option.on.this	
+
+awk '{print $1}' dead.ctds | sed 's/s0$/s2/g' | while read ctds
+do luxadm -e offline /dev/rdsk/${ctds}
+echo "Offlined ${ctds}"
+done;cfgadm -o show_FCP_dev -al c1 | grep unusable
+
+cfgadm -o unusable_SCSI_LUN -c unconfigure `cat run.unusable.option.on.this`
+
+devfsadm -Cv
+=============================================================================================================
+#2nd Path Clearance 
+
+Run fixlockbox.sh
+
+echo
+echo
+for emcs  in `cat pp_emc2.emcs`
+do /etc/powermt display dev=${emcs}|awk 'NF == 9 && $7 == "dead" {print $3, $7}'
+done> dead.ctds2
+
+for ctds in `cat dead.ctds2 | awk '{print $1}'| sort -n `; do echo "removing $ctds `/etc/powermt check dev=$ctds force`"; done
+/etc/powercf -q ; /etc/powermt config ; /etc/powermt save
+
+#####vxdisk list, if required
+awk 'NR != 1 && NR != 2 {print $4}' enclosure.subpaths | while read emcs
+do vxdisk rm ${emcs}
+done
+
+# OS Device tree Clean up 
+cfgadm -o show_FCP_dev -al c2 | awk '$5 == "failing" {print substr($1,1,20)}' |uniq > run.unusable.option.on.this	
+
+awk '{print $1}' dead.ctds | sed 's/s0$/s2/g' | while read ctds
+do luxadm -e offline /dev/rdsk/${ctds}
+echo "Offlined ${ctds}"
+done; cfgadm -o show_FCP_dev -al c4| grep unusable
+
+
+### If for above command we get IO error or device is in use in powermt check cmd, then run below sequence of cmd :
+# vxdisk scandisks
+# this brings back the old vxdisk in vxdisk list
+# yes |/etc/powermt restore dev=all
+# Now again remove from vxdisk list by doing vxdisk rm
+# Run /etc/powermt check on the disks and  bring offline via luxadm
+# /etc/powercf -q ; /etc/powermt -config ; /etc/powermt save
+# REattempt the luxadm offline, this marks the failing disks in cfgadm -o show_FCP_dev -al c1 as unusable
+# Unconfigure the unusable san disks, by running
+# cfgadm -o unusable_SCSI_LUN -c unconfigure `cat run.unusable.option.on.this`
+
+
+cfgadm -o unusable_SCSI_LUN -c unconfigure `cat run.unusable.option.on.this`
+
+devfsadm -Cv
+
+
+
+for luns in `cat pp_emc1.emcs`
+do /etc/powermt display dev=${luns}
+done 
+
+
+==============================================================================================================
+In case lockbox reset && /opt/emc/SYMCLI/install/set_lockbox.sh -default fails for lockbox corruption
+   41  truss ./set_lockbox.sh -default
+   42  file /tmp/SE800_post.log
+   43  cat /tmp/SE800_post.log
+   44  cd /var/symapi/config/
+   45  ls -ltr
+   46  ls -ltr lockboxp2
+   47  mv lockboxp2 _lockboxp2
+   48  ls -ltr
+   49  more options
+   50  cd -
+   51  ./set_lockbox.sh -default
+   52  symcfg discover
+   53  sympd list -sid 6847
+ 
+#!/bin/bash
+if [ -f /var/symapi/config/lockboxp2 ] ; then
+mv  /var/symapi/config/lockboxp2 /var/symapi/config/_lockboxp2
+else tput bold;echo "lockboxp2 file no found"
+fi
+tput bold;echo "Attempting lockbox passwd reset to Default"
+/opt/emc/SYMCLI/install/set_lockbox.sh -default
+tput bold; echo "Running SYMCFG Discover"
+symcfg discover
+   
+===========================================================================================================================
+
+In case luxadm -e offline says `devctl:I/O error` or powermt check says `device is in use`
+
+  129  vxdisk scandisks
+  130  vxdisk list
+  131  /etc/powermt display
+  132  /etc/powermt display dev=all | more
+  133  yes |/etc/powermt restore dev=all
+  134  /etc/powermt display dev=all | more
+  135  vxdisk list
+  136  vxdisk rm pp_emc0_0
+  137  vxdisk list
+  138  vxdisk list pp_emc0_1 pp_emc0_2 pp_emc0_3 pp_emc0_4 pp_emc0_5 pp_emc0_6 pp_emc0_7 pp_emc0_8 pp_emc0_1pp_emc0_9
+  139  vxdisk rm pp_emc0_1 pp_emc0_2 pp_emc0_3 pp_emc0_4 pp_emc0_5 pp_emc0_6 pp_emc0_7 pp_emc0_8
+  140  vxdisk rm pp_emc0_9
+  141  vxdisk rm pp_emc0_10
+  142  vxdisk list
+  143  for ctds in `cat dead.ctds2 | awk '{print $1}'| sort -n `; do echo "removing $ctds `/etc/powermt check dev=$ctds force`"; done
+  144  awk '{print $1}' dead.ctds2 | sed 's/s0$/s2/g' | while read ctds; do luxadm -e offline /dev/rdsk/${ctds}; echo "Offlined ${ctds}"; done; cfgadm -o show_FCP_dev -al c3 | grep unusable
+  145  cfgadm -o unusable_SCSI_LUN -c unconfigure `cat run.unusable.option.on.this`
+  146  cfgadm -o show_FCP_dev -al c3
