@@ -1,0 +1,351 @@
+1.Login the server and take the output backup for the below ( PREREQUISTES)
+
+mkdir ${migrdir}storagemigr
+migrdir=${migrdir}storagemigr
+CHG=$1
+mkdir ${CHG}
+echo|format >> ${migrdir}${CHG}/format.txt
+cfgadm -al  >> ${migrdir}${CHG}/cfgadm.txt
+/etc/powermt display dev=all >> ${migrdir}${CHG}/powermtdev.txt
+df -h >> ${migrdir}${CHG}/df.txt
+vxdisk -eo alldgs list >> ${migrdir}${CHG}/vxdisk.txt
+vxprint -htg appdg >> ${migrdir}${CHG}/vxprint.txt
+zoneadm list -civ >> ${migrdir}${CHG}/zones.txt
+sympd list >> ${migrdir}${CHG}/sympdlst.txt
+symdg list >> ${migrdir}${CHG}/symdglst.txt
+vxdisk -eo alldgs list | wc -l
+vxdisk -eo alldgs list | grep -i invalid | wc -l
+vxdisk list | grep -i invalid | wc -l
+
+1.Login the server and take the output backup for the below ( PREREQUISTES)
+a.cfgadm -al | grep -i fabric >> ${migrdir}${CHG}/cfgadm.txt
+b.echo|format >> ${migrdir}${CHG}/format.txt
+c./etc/powermt display dev=all >> ${migrdir}${CHG}/powermtdev.txt
+d.df -h >> ${migrdir}${CHG}/df.txt
+e.vxdisk -eo alldgs list >> ${migrdir}${CHG}/vxdisk.txt
+f.vxprint -htg appdg >> ${migrdir}${CHG}/vxprint.txt
+f.zoneadm list -civ >> ${migrdir}${CHG}/zones.txt
+g.sympd list >> ${migrdir}${CHG}/sympdlst.txt
+h.symdg list >> ${migrdir}${CHG}/symdglst.txt
+i.vxdisk -eo alldgs list | wc -l
+j.vxdisk -eo alldgs list | grep -i invalid | wc -l
+h.vxdisk list | grep -i invalid | wc -l
+i. 
+
+
+## Taking Veritas Config backups
+
+/usr/sbin/vxdg list |grep -v NAME | awk '{print $1}'  |
+ while read DG
+ do
+  mkdir -p ${migrdir}${CHG}/${DG}
+  /usr/sbin/vxprint -hmvqQ -g ${DG} > ${migrdir}${CHG}/${DG}/vxprint_hmvqQ_${DG}
+  /usr/sbin/vxprint -htg ${DG} > ${migrdir}${CHG}/${DG}/vxprint_htg_${DG}
+ cat ${migrdir}${CHG}/${DG}/vxprint_htg_${DG} | grep gen | awk '{print $2}' > ${migrdir}${CHG}/${DG}/${DG}_VOLS
+ done 
+
+## Taking veritas config backup for all Volumes
+/usr/sbin/vxdg list |grep -v NAME | awk '{print $1}'  |
+while read DG
+ do
+ for i in `cat ${migrdir}/${DG}/${DG}_VOLS`
+ do
+  /usr/sbin/vxprint -hmvqQ -g ${DG} $i > ${migrdir}/${DG}/${DG}_$i
+done
+done
+
+/usr/sbin/vxdg list |grep -v NAME | awk '{print $1}'  |
+while read DG
+do
+	for i in `cat ${migrdir}/${DG}/${DG}_VOLS`
+		do
+			vxprint -hmqQ -g ${DG} | egrep -i "pl_num|layout|vol  " > ${migrdir}/${DG}/plex.layout.details
+	done
+done
+
+mkdir ${migrdir}${CHG}/vxconfigbackups
+
+
+/usr/sbin/vxdg list |grep -v NAME | awk '{print $1}'  |
+ while read DG
+ do
+ vxconfigbackup -l ${migrdir}${CHG}/vxconfigbackups $DG
+ done
+ 
+ 
+
+ROOT@nyginmeshnp26 [UAT Active]  egrep -c "^[c2|c4|emc]" format.txt
+60
+
+
+No Title
+2> SCANNING the disks
+# devfsadm -Cv
+# /etc/powercf –q
+# /etc/powermt config
+# /etc/powermt save
+# /etc/powermt display device=all > allpowermtdevs.post.scan3
+# symcfg discover
+# syminq > syminq.post.symcfg.disc
+# syminq -wwn > syminq.wwn.post.symcfg.disc
+# vxdctl enable
+# syminq > syminq.post.vxdctl.txt
+# syminq -wwn > syminq.wwn.vxdctl.txt
+
+Check new lun in both the server which is Primary/secondary 
+
+syminq > syminq.txt
+
+syminq | grep 	0017D
+syminq | grep 	008C8
+syminq | grep 	008C9
+syminq | grep 	008CA
+syminq | grep 	008CB
+syminq | grep 	00156
+syminq | grep 	00157
+syminq | grep 	00158
+
+syminq -wwn | grep -i 	emcdiskname 
+syminq -wwn | grep -i 	emcdiskname 
+syminq -wwn | grep -i 	emcdiskname 
+syminq -wwn | grep -i 	emcdiskname 
+syminq -wwn | grep -i 	emcdiskname 
+syminq -wwn | grep -i 	emcdiskname 
+syminq -wwn | grep -i 	emcdiskname 
+syminq -wwn | grep -i 	emcdiskname 
+
+
+3)Label the LUN
+--------------
+Before label lun , Just check the disk are part of any dg.
+
+Creating list of disks to be formatted :
+#storagemapping.tgt.luns contains lunids of new tgt storage array lun
+# Recommended that syminq o/p be stroed in a file
+for luns in `cat storagemapping.tgt.luns` 
+do echo "$luns `grep $luns syminq.wwn.post.vxdctl.txt| grep  'emcpower[0-9]*c'`"  >> format.this.os.disk.tmp
+done 
+awk '{print $2}' format.this.os.disk.tmp | awk -F"/" '{print $4}' > format.this.os.disk
+
+
+List vxdisk to be initialized:
+grep 00CAD syminq.txt | grep 'emcpower[0-9]*s2'
+grep 00CAD syminq.txt | grep 'emcpower[0-9]*s2' | awk '{print $1}' |awk -F"/" '{print $5}'
+===========================================================================================================
+for luns in `cat storagemapping.tgt.luns`
+do echo "$luns `grep $luns syminq.wwn.post.vxdctl.txt  | grep 'emcpower[0-9]*s2'`" >> tgtluns4vxinit.txt.tmp
+done
+
+awk '{print $2}' tgtluns4vxinit.txt.tmp | awk -F"/" '{print $5}' > tgtluns4vxinit.txt
+
+for luns in `cat tgtluns4vxinit.txt`; do vxdisk list | grep -w $luns >>verified.tgtluns.from.vxdisk;done
+ awk 'NF == "5" {print $1}' verified.tgtluns.from.vxdisk > verified.tgtluns.from.vxdisk.filtered
+ 
+ awk '{ if ($1 != $2 ) print "Check Record Number", NR":", $1, $2 }' validate.tgt.luns
+==========================================================================================================
+
+
+
+for i in `cat format136g`; do 
+format $i <<EOF
+l
+y
+q
+EOF
+done
+
+#Post format generate equivalent Vx disk devices name that were just formatted above, 
+#for purpose of initializing into veritas in next step 4):
+
+
+
+check the new disk status (should be online invalid)
+
+4) initialize new disks
+
+vxdctl enable  
+
+for i in `cat vxinit136g`
+do
+vxdisk init $i  
+vxdisk list | grep $i
+done
+
+All new disks status should be online.
+
+
+5) Add the new disk into DG->appdg
+vxdg -g appdg adddisk Newappdg_001=Devicename  ( Need to prepare for all 8 disks)
+
+vxdg -g appdg adddisk appdg_001=
+vxdg -g appdg adddisk appdg_001=
+vxdg -g appdg adddisk appdg_001=
+vxdg -g appdg adddisk appdg_001=
+vxdg -g appdg adddisk appdg_001=
+vxdg -g appdg adddisk appdg_001=
+vxdg -g appdg adddisk appdg_001=
+vxdg -g appdg adddisk appdg_001=
+
+	#!/bin/bash
+	dgname=$1
+	a=5194
+	for disks in `cat newluns.$dgname`
+	do echo "Working on $disks"
+	vxdg -g $dgname adddisk ${dgname}_${a}=$disks
+	a=`expr $a + 1`
+	done
+
+
+create newluns.${dgname} by first creating :
+Use storagemapping.txt (excel sheet content)
+1> ${dgname}.luns
+# vxprint -htg ${dgname} | awk '/^dm/ {print $3}'> ${dgname}.luns
+
+2> ${dgname}.luns.id
+# for luns in `cat ${dgname}.luns`; do grep $luns syminq.wwn.txt ; done |awk '{print $2}' | sed 's/^0//g' > ${dgname}.luns.id
+
+3> ${dgname}.tgt.luns.id
+# for lunid in `cat ${dgname}.luns.id`; do grep $lunid storagemapping.txt; done |awk '{print $3}' >${dgname}.tgt.luns.id
+
+4> ${dgname}.tgt.luns.emcpowerdevs
+# for tgtluns in `cat ${dgname}.tgt.luns.id`; do grep $tgtluns syminq.wwn.txt |grep 'emcpower[0-9]*s2'; done > ${dgname}.tgt.luns.emcpowerdevs
+
+5> newluns.${dgname}
+awk  '{print $1}' ${dgname}.tgt.luns.emcpowerdevs | awk -F"/" '{print $5}' > newluns.${dgname}
+
+sh add2dg.sh dgname
+
+6> ${dgname}.vxdevname
+vxdisk list | grep ${dgname} | grep 'VMAX[0-9][0-9][0-9]' | awk '{print $3}' > ${dgname}.vxdevname
+
+or generic one is:
+
+for tgtemcs in `cat newluns.${dgname}`
+do vxdisk list | grep $tgtemcs | awk '{print $3}'
+done > ${dgname}.tgt.vxdevnames
+
+
+sh addmirr.sh dgname ${dgname}.vxdevname
+
+
+for dgname in `cat dgnames`
+do
+        vxprint -htg ${dgname} | awk '/^dm/ {print $3}'> ${dgname}.luns
+        for luns in `cat ${dgname}.luns`; do grep $luns syminq.wwn.postvxdctl.txt ; done |awk '{print $2}' | sed 's/^0//g' > ${dgname}.luns.id
+        for lunid in `cat ${dgname}.luns.id`; do grep $lunid storagemapping.txt; done |awk '{print $3}' >${dgname}.tgt.luns.id
+        for tgtluns in `cat ${dgname}.tgt.luns.id`; do grep $tgtluns syminq.wwn.txt |grep 'emcpower[0-9]*s2'; done > ${dgname}.tgt.luns.emcpowerdevs
+        awk  '{print $1}' ${dgname}.tgt.luns.emcpowerdevs | awk -F"/" '{print $5}' > newluns.${dgname}
+done
+
+#sometimes sed removal of leading 0 is not required
+for dgname in `cat dgname`
+do
+    vxprint -htg ${dgname} | awk '/^dm/ {print $3}'> ${dgname}.luns
+    for luns in `cat ${dgname}.luns`; do grep $luns syminq.wwn.post.vxdctl.txt ; done |awk '{print $2}'  > ${dgname}.luns.id
+    for lunid in `cat ${dgname}.luns.id`; do grep $lunid storagemapping.txt; done |awk '{print $3}' >${dgname}.tgt.luns.id
+    for tgtluns in `cat ${dgname}.tgt.luns.id`; do grep $tgtluns syminq.wwn.post.vxdctl.txt |grep 'emcpower[0-9]*s2'; done > ${dgname}.tgt.luns.emcpowerdevs
+    awk  '{print $1}' ${dgname}.tgt.luns.emcpowerdevs | awk -F"/" '{print $5}' > newluns.${dgname}
+done
+
+
+=================================================================================================================
+Experiment
+
+vxprint -htg reclaim_dg | awk 'NF == 7 && /^dm/ {print $6}' | sort -n | uniq
+47550208
+47611648
+95170048
+95231488
+ROOT@nygshspltd20 [DEV Active]  echo '47550208/2/1024/1024' | bc
+22
+ROOT@nygshspltd20 [DEV Active]  echo '47611648/2/1024/1024' | bc
+22
+ROOT@nygshspltd20 [DEV Active]  echo '95170048/2/1024/1024' | bc
+45
+ROOT@nygshspltd20 [DEV Active]  echo '95231488/2/1024/1024' | bc
+45
+
+
+
+Take plex backup in postscan dir for easy removal : # vxprint -tp -g dgname | grep '^pl' > remove.these.plexes
+
+
+6) Mirror volumes with new devices
+
+Example :
+
+/dev/vx/dsk/appdg/homevol    16G    13G   2.6G    84%    /home
+/dev/vx/dsk/appdg/logvol    40G    12G    26G    33%    /logs
+/dev/vx/dsk/appdg/lognonappvol   4.0G   1.6G   2.2G    43%    /logs-nonapp
+
+v  appvol-old   fsgen        ENABLED  20971520 -        ACTIVE   -       -
+v  homevol      fsgen        ENABLED  33554432 -        ACTIVE   -       -
+v  lognonappvol fsgen        ENABLED  8388608  -        ACTIVE   -       -
+v  logvol       fsgen        ENABLED  83886080 -        ACTIVE   -       -
+v  logvol-old   fsgen        ENABLED  62914560 -        ACTIVE   -       -
+v  oracle-old   fsgen        ENABLED  5218304  -        ACTIVE   -       -
+v  oravol       fsgen        ENABLED  8388608  -        ACTIVE   -       -
+
+
+vxassist -b -g appdg mirror homevol diskname 
+vxassist -b -g appdg mirror logvol diskname
+vxassist -b -g appdg mirror lognonappvol diskname
+
+6> ${dgname}.vxdevname
+vxdisk list | grep ${dgname} | grep 'VMAX[0-9][0-9][0-9]' | awk '{print $3}' > ${dgname}.vxdevname
+
+sh addmirr.sh dgname ${dgname}.vxdevname
+
+#!/bin/bash
+dgname=$1
+vxdevfile=$2
+for vols  in `vxinfo -g ${dgname} | awk '{print $1}'`
+do echo "Create mirror for ${vols}"
+vxassist -b -g ${dgname} mirror ${vols} `cat ${vxdevfile}`
+done
+
+
+Alternatively:
+
+#!/bin/bash
+dgname=$1
+vxdevfile=$2
+for volumes  in `cat vols`
+do echo "Create mirror for ${volumes}"
+vxassist -b -g ${dgname} mirror ${volumes} `cat ${vxdevfile}`
+done
+
+
+# for stripe volumes
+vxassist -b -g ${dgname} mirror ${vols} layout=stripe ncols=X `cat ${vxdevfile}`
+
+# manually
+vxassist -b -g nycinqd5_dg mirror lv_cinqd5_home layout=stripe ncols=4 `cat nycinqd5_dg.stripe.lv_cinqd5_home.tgt.vxdevnames`
+
+
+Like we need to follow for data file systems.
+
+verify the sync status
+#vxtask list 
+
+
+7) once synchronized ( Check All volumes should be enabled-active with 2 plexes ) --> size should be same. 
+
+#vxprint -htrg appdg | more 
+
+ 
+8)Disassosiate the old plex (one by one )
+
+#vxplex -g appdg dis <oldplexname>
+
+vxplex -g appdg dis <oldplexname>
+or 
+vxplex -g dgname -o rm dis <oldplexname>
+
+9) Remove old Disk Media (dm) from disk group
+vxprint -ht | grep '^dm' > remove.these.dm
+for dm in `awk '{print $2}' remove.these.dm`; do echo "Removing DMs $dm"; vxdg -g dgname rmdisk $dm; done
+
+
+
+ 
